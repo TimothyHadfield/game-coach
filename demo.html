@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Game Coach demo</title>
+<link rel="stylesheet" href="coach.css">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #14110d; color: #eee6d6; font: 14px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+  :root { --accent: #e0a43a; }
+  .app { height: 100dvh; display: grid; grid-template-rows: auto auto 1fr auto auto; gap: 8px; padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); }
+  header { display: flex; gap: 6px; align-items: center; }
+  header b { flex: 1; }
+  button { font: inherit; font-size: 13px; font-weight: 600; min-height: 36px; padding: 0 10px; border-radius: 8px; border: 1px solid #4a3e2c; background: #241d14; color: #eee6d6; }
+  .q { width: 36px; padding: 0; border-radius: 50%; }
+  .opps { display: flex; gap: 6px; }
+  .opp { flex: 1; min-height: 52px; border-radius: 10px; background: #2b2216; display: grid; place-items: center; }
+  .board { border-radius: 16px; background: radial-gradient(ellipse at 50% 35%, #2f6b45, #1c4029 70%); box-shadow: 0 0 0 6px #2b1d10, inset 0 0 40px rgba(0,0,0,.5); display: grid; place-items: center; min-height: 0; }
+  .spot { width: 38%; aspect-ratio: 1.4; border: 2px dashed rgba(255,255,255,.35); border-radius: 12px; display: grid; place-items: center; }
+  .hand { display: flex; gap: 6px; justify-content: center; }
+  .card { width: 54px; height: 76px; border-radius: 6px; background: #f6efe0; color: #2b2519; display: grid; place-items: center; font-weight: 700; box-shadow: 0 2px 6px rgba(0,0,0,.4); }
+  .acts { display: flex; gap: 8px; }
+  .acts button { flex: 1; min-height: 44px; }
+  #go { background: #e0a43a; color: #241a08; border-color: #e0a43a; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header><b>Coach demo</b><button id="b-tour">Tour</button><button id="b-offer">Offer</button><button class="q" id="b-rules" aria-label="Rules">?</button></header>
+  <div class="opps"><div class="opp" id="o1">Rival 1</div><div class="opp" id="o2">Rival 2</div><div class="opp" id="o3">Rival 3</div></div>
+  <div class="board" id="board"><div class="spot" id="spot">Centre</div></div>
+  <div class="hand" id="hand"><div class="card">A</div><div class="card">7</div><div class="card">K</div><div class="card">3</div></div>
+  <div class="acts"><button id="go">Play</button><button id="pass">Pass</button></div>
+</div>
+<script src="coach.js"></script>
+<script>
+  const T = COACH.tour({
+    id: 'demo',
+    steps: [
+      { title: 'Welcome', text: 'A quick look round the table. Next, Back and Skip work at any time.' },
+      { target: '#o1', text: 'Your rivals sit across the table.' },
+      { target: '#o3', text: 'The bubble never covers what it points at, even in a corner.' },
+      { target: '#board', text: 'The board fills the middle of the table.' },
+      { target: '#hand', text: 'Your cards are held at the bottom edge.' },
+      { target: '#go', title: 'Your move', text: 'Tap Play.', waitFor: 'played' },
+      { target: '#b-rules', text: 'The full rules are behind this button.' },
+    ],
+  });
+  document.getElementById('go').onclick = () => COACH.emit('played');
+  document.getElementById('b-tour').onclick = () => { T.reset(); T.start(); };
+  const offer = force => COACH.offer({ id: 'demo', force, title: 'New here?', text: 'Play a guided first game.', onYes: () => T.start() });
+  document.getElementById('b-offer').onclick = () => offer(true);
+  const sections = [
+    { id: 'goal', title: 'Goal', short: 'Goal', html: '<p>Be the first to 20 points, or the last one standing.</p>' },
+    { id: 'turn', title: 'Your turn', short: 'Turn', html: '<ol><li>Roll.</li><li>Keep any dice, reroll the rest, twice.</li><li>Resolve.</li></ol><p class="tip">Tip: a tip sits in a box like this.</p>' + '<p>Filler text so the sheet scrolls. '.repeat(12) + '</p>' },
+    { id: 'cards', title: 'Cards', short: 'Cards', html: '<table><tr><th>Kind</th><th>What</th></tr><tr><td>Keep</td><td>Stays in front of you.</td></tr><tr><td>Discard</td><td>Used once.</td></tr></table>' + '<p>More filler. '.repeat(14) + '</p>' },
+    { id: 'end', title: 'End of the game', short: 'End', html: '<p>Ties share the win.</p>' },
+  ];
+  document.getElementById('b-rules').onclick = () => COACH.rules({ title: 'Rules', sections, intro: 'Demo rules sheet.' });
+  if (!T.resume()) offer(false);
+  window.__T = T;
+</script>
+</body>
+</html>

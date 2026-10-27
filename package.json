@@ -1,0 +1,9 @@
+{
+  "name": "game-coach",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Guided first game (coach overlay) + rules sheet shared by Tim's board game sites.",
+  "scripts": {
+    "test": "node --test test/coach.test.mjs"
+  }
+}
