@@ -11,6 +11,7 @@
   --coach-accent-ink: #fff;
   --coach-dim: rgba(6, 8, 12, .58);
   --coach-z: 60;
+  /* --coach-offer-bottom: the offer card's gap from the bottom (set it above a bottom tab bar) */
   --coach-font: inherit;
 }
 
@@ -53,7 +54,7 @@
 @keyframes coach-nudge { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
 
 /* "first time here?" card: bottom centre, above the game, never a full-screen wall */
-.coach-offer { left: 50%; transform: translateX(-50%); bottom: calc(14px + env(safe-area-inset-bottom)); width: min(360px, calc(100vw - 16px));
+.coach-offer { left: 50%; transform: translateX(-50%); bottom: calc(var(--coach-offer-bottom, 14px) + env(safe-area-inset-bottom)); width: min(360px, calc(100vw - 16px));
   z-index: calc(var(--coach-z) - 2); }
 .coach-offer.enter { animation: coach-offer-in .25s ease-out; }
 @keyframes coach-offer-in { from { opacity: 0; transform: translate(-50%, 10px); } }

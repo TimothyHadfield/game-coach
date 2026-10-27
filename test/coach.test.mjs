@@ -44,6 +44,14 @@ test('the bubble never leaves the screen and never covers its target (320..1440 
   assert.equal(over, 0);
 });
 
+test('phone sideways, a tall target on the right: a narrower note beside it shows whole instead of a clipped one above', () => {
+  // King of Tokyo at 659x393: the dice + buttons area, the note 137 px tall at 320 px wide
+  const p = C.place({ left: 288, top: 107, width: 367, height: 226 }, { w: 320, h: 137 }, { w: 659, h: 393 });
+  assert.equal(p.side, 'left');
+  assert.ok(p.w >= 200 && p.x >= 8 && p.x + p.w <= 288 - 10, JSON.stringify(p));
+  assert.ok(p.maxH >= Math.ceil(137 * 320 / p.w), 'room for the whole note: ' + JSON.stringify(p));
+});
+
 test('a target that fills the screen pins the bubble to an edge, still on screen', () => {
   const p = C.place({ left: 0, top: 0, width: 393, height: 659 }, { w: 320, h: 140 }, { w: 393, h: 659 });
   assert.equal(p.side, 'over');
@@ -140,8 +148,31 @@ test('until / when / skipIf follow the game state', () => {
   assert.equal(t.index, 0);
   g.phase = 'roll'; t.update();
   assert.equal(t.index, 2, 'skipped the Tokyo step');
+  g.phase = 'yield'; t.update();
+  assert.equal(t.index, 2, 'its moment: shown');
   g.phase = 'after'; t.update();
   assert.equal(t.index, 3);
+});
+
+test('a step waiting for its moment (when) does not count its until as done before that moment', () => {
+  // "Stay or leave?": shown once you are asked, done once you've answered. Before you are asked,
+  // "not asked" must not count as "answered".
+  const g = { ask: null };
+  const t = mkTour([{ text: 'computers play' }, { text: 'stay?', when: () => g.ask === 'yield', until: () => g.ask !== 'yield' }, { text: 'next' }]);
+  t.start(); t.next();
+  assert.equal(t.index, 1, 'still waiting for the question');
+  g.ask = 'yield'; t.update();
+  assert.equal(t.index, 1);
+  g.ask = null; t.update();
+  assert.equal(t.index, 2, 'answered');
+});
+
+test('an event that fired while its step was waiting still moves it on', () => {
+  let ready = false;
+  const t = mkTour([{ text: 'a', when: () => ready, waitFor: 'go' }, { text: 'b' }]);
+  t.start(); t.emit('go');
+  assert.equal(t.index, 1);
+  assert.equal(ready, false);
 });
 
 test('a tour in progress comes back after a reload, at the same step', () => {

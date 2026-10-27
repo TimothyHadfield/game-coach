@@ -23,7 +23,8 @@ const tour = COACH.tour({
     { title, text | html, target, place, width, pad, block,   // target: selector / element / list / function
       waitFor: 'rolled',                // moves on when the game calls COACH.emit('rolled')
       until: () => bool,                // ...or when this turns true (checked ~4x a second)
-      when: () => bool,                 // hidden until this is true (e.g. "only once it's your turn")
+      when: () => bool,                 // hidden until this is true (e.g. "only once it's your turn");
+                                        // until only counts once the step has been shown ("not asked" ≠ "answered")
       skipIf: () => bool,               // skipped when true
       next: true|false, back: false },  // action steps (waitFor/until) show no Next unless next: true
   ],
@@ -80,6 +81,7 @@ COACH.closeRules() → bool · COACH.rulesOpen()
 
 ## 5. Tests
 - `node --test test/coach.test.mjs`: placement, the stacked random numbers, the step logic, resume, private mode.
-  Seen failing against a broken copy (`COACH_JS=<copy>`): 5 of 13 fail.
+  Seen failing against a broken copy (`COACH_JS=<copy>`): 5 of 13 fail; the 1.0.0 pre-release fails the
+  sideways-phone placement and the `when`/`until` tests (both found by the King of Tokyo pilot).
 - `node test/coach-ui.mjs http://127.0.0.1:PORT/demo.html [--shots dir]`: the demo in WebKit (320, 393, 659×393)
   and Chromium (1280, 1440), one browser at a time.

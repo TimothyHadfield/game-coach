@@ -60,7 +60,8 @@
         return { x, y, w, maxH: Math.max(0, Math.floor(room[side])), side };
       }
       const ww = Math.min(w, Math.max(0, room[side]));
-      const h = Math.min(box.h, view.h - 2 * m);
+      // a narrower note wraps onto more lines: estimate its height from the width it loses
+      const h = Math.min(ww > 0 ? Math.ceil(box.h * w / ww) : box.h, view.h - 2 * m);
       const y = clamp(Math.round(cy - h / 2), m, view.h - m - h);
       const x = side === 'right' ? Math.round(T.r + g) : Math.round(T.l - g - ww);
       return { x, y, w: Math.floor(ww), maxH: view.h - m - y, side };
@@ -69,11 +70,16 @@
     const order = ['below', 'above', 'right', 'left'];
     if (o.prefer && order.includes(o.prefer)) order.unshift(...order.splice(order.indexOf(o.prefer), 1));
     for (const s of order) if (fits(s)) return at(s);
+    // a narrower note beside the target, if it then fits whole (phone sideways: tall targets, little height)
+    const sideMin = o.sideMin || 160;
+    for (const s of ['left', 'right'].sort((a, b) => room[b] - room[a])) {
+      if (room[s] >= Math.max(sideMin, 200) && Math.ceil(box.h * w / room[s]) <= view.h - 2 * m) return at(s);
+    }
     // nothing fits whole: the roomier of above/below, the bubble scrolls inside (still not over the target)
     const v = room.below >= room.above ? 'below' : 'above';
     if (room[v] >= (o.minH || 72)) return at(v);
     const hz = room.right >= room.left ? 'right' : 'left';
-    if (room[hz] >= (o.sideMin || 160)) return at(hz);
+    if (room[hz] >= sideMin) return at(hz);
     // the target fills the screen: pin to the edge with more room (overlap is unavoidable here)
     const h = Math.min(box.h, Math.round(view.h * 0.4));
     return { x: Math.round((view.w - w) / 2), y: v === 'below' ? view.h - m - h : m, w, maxH: h, side: 'over' };
@@ -154,7 +160,7 @@
       update() { check(); layout(); },
       current() { return steps[t.index] || null; },
     };
-    let ui = null, raf = 0, last = '', shown = false, scrolled = -1, frames = 0;
+    let ui = null, raf = 0, last = '', shown = false, scrolled = -1, frames = 0, entered = -1;
     function persist() { if (t.active) store.set(KEY, { i: t.index, fired: [...t.fired].slice(-40) }); }
     function stopOthers(x) { if (active && active !== x) active.stop(); active = x; }
     // the previous step that is just text (an action step that is already done would skip straight on)
@@ -183,8 +189,10 @@
         const s = steps[t.index];
         if (!s) { finish('done'); return; }
         if (s.skipIf && ok(s.skipIf)) { t.index++; persist(); continue; }
-        if (s.when && !ok(s.when) && !doneNow(s)) { hide(); return; }
+        // before its moment (when), only a fired event can finish a step: "not asked yet" is not "answered"
+        if (s.when && !ok(s.when) && !(s.waitFor && t.fired.has(s.waitFor)) && !(entered === t.index && doneNow(s))) { hide(); return; }
         if (doneNow(s)) { if (s.waitFor) t.fired.delete(s.waitFor); if (t.index + 1 >= steps.length) { finish('done'); return; } t.index++; shown = false; last = ''; persist(); if (cfg.onStep) { try { cfg.onStep(t.index, steps[t.index]); } catch (e) { /* */ } } continue; }
+        entered = t.index;   // this step's moment has come (it is on screen)
         draw(s); return;
       }
     }
@@ -204,6 +212,7 @@
       });
       blk.forEach(b => b.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); nudge(); }));
       ui = { wrap, ring, blk, bub };
+      prevSig = ''; meas = { key: null, bw: 0, h: 0 };   // a fresh note: measure and place it again
       root.addEventListener('resize', layout); root.addEventListener('scroll', layout, true);
       // follows the target as the game redraws; conditions (until / when) are re-checked ~4 times a second
       const loop = () => { if (!ui) return; if (++frames % 15 === 0) check(); layout(); if (ui) raf = root.requestAnimationFrame(loop); };
@@ -238,7 +247,7 @@
       ui.wrap.classList.toggle('coach-blocking', !!s.block);
       layout();
     }
-    let prevSig = '';
+    let prevSig = '', meas = { key: null, bw: 0, h: 0 };
     function layout() {
       if (!ui || !t.active || ui.wrap.classList.contains('coach-off')) return;
       const s = steps[t.index]; if (!s) return;
@@ -250,8 +259,13 @@
       const hole = r ? { left: Math.max(2, r.left - pad), top: Math.max(2, r.top - pad) } : null;
       if (hole) { hole.width = Math.min(vw - 2, r.left + r.width + pad) - hole.left; hole.height = Math.min(vh - 2, r.top + r.height + pad) - hole.top; }
       const bw = Math.min(s.width || 320, vw - 16);
-      ui.bub.style.width = bw + 'px'; ui.bub.style.maxHeight = '';
-      const bh = ui.bub.offsetHeight;
+      // the note's natural height is measured once per text and width (re-measuring every frame cleared the
+      // height cap the placement had set, and the note grew back over its target)
+      if (meas.key !== last || meas.bw !== bw) {
+        ui.bub.style.width = bw + 'px'; ui.bub.style.maxHeight = '';
+        meas = { key: last, bw, h: ui.bub.offsetHeight }; prevSig = '';
+      }
+      const bh = meas.h;
       const sig = [vw, vh, bh, hole && [hole.left, hole.top, hole.width, hole.height].map(Math.round).join(',')].join('|');
       if (sig === prevSig) return;
       prevSig = sig;
