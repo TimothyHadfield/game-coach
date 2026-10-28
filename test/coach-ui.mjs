@@ -40,6 +40,18 @@ for (const [name, eng, w, h, mobile] of SIZES) {
     await page.goto(url); await page.waitForTimeout(300);
     check(await page.locator('.coach-offer').count() === 1, `${name}: first visit shows the offer`);
     if (shots) await page.screenshot({ path: `${shots}/${name}-offer.png` });
+    // 1.2.0: place 'auto' keeps the card off the bottom tab bar and off the avoided Play button, on screen
+    const og = await page.evaluate(() => {
+      const r = e => { const b = document.querySelector(e).getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom }; };
+      const o = document.querySelector('.coach-offer'), b = o.getBoundingClientRect();
+      // measure from the computed position (the slide-in may still be moving the box)
+      const cs = getComputedStyle(o), h = o.offsetHeight;
+      const top = cs.top !== 'auto' && o.style.top !== 'auto' ? parseFloat(cs.top) : innerHeight - parseFloat(cs.bottom) - h;
+      return { o: { l: b.left, t: top, r: b.right, b: top + h }, tabs: r('.tabs'), go: r('#go'), vh: innerHeight, vw: innerWidth, place: o.dataset.place };
+    });
+    const hits = (a, b) => a.l < b.r && a.r > b.l && a.t < b.b && a.b > b.t;
+    check(!hits(og.o, og.tabs) && !hits(og.o, og.go) && og.o.t >= 0 && og.o.b <= og.vh + 0.5,
+      `${name}: the offer covers neither the tab bar nor the Play button (${og.place}: ${Math.round(og.o.t)}-${Math.round(og.o.b)}, tabs from ${Math.round(og.tabs.t)}, Play ${Math.round(og.go.t)}-${Math.round(og.go.b)})`);
     await page.click('.coach-offer [data-o="yes"]'); await page.waitForTimeout(250);
     let bad = 0, steps = 0, sawTall = false;
     for (let k = 0; k < 12; k++) {
@@ -98,6 +110,32 @@ for (const [name, eng, w, h, mobile] of SIZES) {
       return { sideways: n.scrollWidth > n.clientWidth + 1, hidden: out, n: n.children.length, rows: new Set([...n.children].map(b => Math.round(b.getBoundingClientRect().top))).size };
     });
     check(!tabs.sideways && tabs.hidden === 0, `${name}: all ${tabs.n} rules tabs show, no sideways scroll (${tabs.rows} row(s), ${tabs.hidden} cut off)`);
+    // 1.2.0: links are dark ink on the cream paper (the page's own `a` colour is light purple), the videos
+    // list opens in a new tab, and a game's own link rule still wins (even when it loads before coach.css)
+    const lk = await page.evaluate(() => {
+      const lum = c => { const [r, g, b] = c.match(/[\d.]+/g).slice(0, 3).map(v => { v = v / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+      const paper = lum('rgb(251, 246, 233)');
+      const links = [...document.querySelectorAll('.coach-rules-body a')];
+      const ratios = links.map(a => { const L = lum(getComputedStyle(a).color); return (Math.max(L, paper) + 0.05) / (Math.min(L, paper) + 0.05); });
+      const vids = [...document.querySelectorAll('.coach-rules-body .coach-vids a')];
+      return { n: links.length, minRatio: Math.min(...ratios), vids: vids.length, newTab: vids.every(a => a.target === '_blank' && a.rel === 'noopener' && /^https:\/\/www\.youtube\.com\/watch\?v=[\w-]{11}$/.test(a.href)),
+        tab: !!document.querySelector('.coach-rules-nav [data-sec="8"]') && document.querySelector('.coach-rules-nav [data-sec="8"]').textContent };
+    });
+    check(lk.n >= 3 && lk.minRatio >= 4.5, `${name}: rules links readable on the paper (${lk.n} links, contrast ${lk.minRatio.toFixed(1)}:1)`);
+    check(lk.vids === 2 && lk.newTab && lk.tab === 'Videos', `${name}: videos section (${lk.vids} links, new tab ${lk.newTab}, tab "${lk.tab}")`);
+    const own = await page.evaluate(() => {
+      const s = document.createElement('style'); s.textContent = '.coach-rules-body a { color: rgb(120, 20, 20); } .coach-vids a { color: rgb(10, 90, 30); }';
+      document.head.prepend(s);   // before coach.css (Codenames' and Monopoly's rules): the game's rule must still win
+      const a = document.querySelector('.coach-rules-body section:not(:last-of-type) a');
+      const out = [getComputedStyle(document.querySelector('.coach-vids a')).color, getComputedStyle(a).color];
+      s.remove(); return out;
+    });
+    check(own[0] === 'rgb(10, 90, 30)' && own[1] === 'rgb(120, 20, 20)', `${name}: a game's own link colour still wins (${own.join(' / ')})`);
+    if (!mobile) {
+      await page.focus('.coach-rules-body a'); await page.keyboard.press('Shift+Tab'); await page.keyboard.press('Tab');
+      const fo = await page.evaluate(() => { const a = document.activeElement; return a.tagName === 'A' ? getComputedStyle(a).outlineStyle + ' ' + getComputedStyle(a).outlineWidth : 'not a link'; });
+      check(/solid 2px/.test(fo), `${name}: a focused link shows an outline (${fo})`);
+    }
     await page.click('.coach-rules-nav [data-sec="2"]'); await page.waitForTimeout(150);
     const jumped = await page.evaluate(() => { const b = document.querySelector('.coach-rules-body'), s = b.querySelector('[data-k="2"]'); return Math.abs(s.getBoundingClientRect().top - b.getBoundingClientRect().top) < 30 || b.scrollTop + b.clientHeight >= b.scrollHeight - 2; });
     check(jumped, `${name}: a section tab jumps to its section`);

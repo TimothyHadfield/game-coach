@@ -254,3 +254,45 @@ test('storage that throws (private mode) never breaks the tour', () => {
     assert.equal(t.resume(), false);
   } finally { globalThis.localStorage = saved; }
 });
+
+// ---- 1.2.0: where the first-visit card goes (place: 'auto') and the rules sheet's videos list
+test('offer spot: the usual bottom spot unless something is in the way (Coup, Checkers, King of Tokyo shapes)', () => {
+  assert.equal(typeof C.offerPick, 'function', 'COACH.offerPick missing');
+  for (const [vw, vh] of [[320, 568], [393, 659], [659, 393], [1280, 800]]) {
+    const w = Math.min(360, vw - 16), h = 128, left = (vw - w) / 2;
+    const at = (name, top) => ({ name, rect: { left, top, width: w, height: h } });
+    const tabs = { left: 0, top: vh - 58, width: vw, height: 58 };              // a bottom tab bar
+    const deal = { left: 16, top: vh - 58 - 60, width: vw - 32, height: 48 };   // the main button right above it
+    const cands = [at('bottom', vh - 14 - h), at('above-bar', tabs.top - 10 - h), at('top', 10)];
+    // nothing in the way: the usual bottom spot (same as 1.1.0)
+    assert.equal(C.offerPick(cands, [], [], { w: vw, h: vh }), 0);
+    // a tab bar only: just above it
+    assert.equal(cands[C.offerPick(cands, [tabs], [], { w: vw, h: vh })].name, 'above-bar', `${vw}x${vh} tab bar`);
+    // tab bar + the Deal button right above it (Coup): the top
+    assert.equal(cands[C.offerPick(cands, [tabs, deal], [], { w: vw, h: vh })].name, 'top', `${vw}x${vh} tab bar + Deal`);
+    // a hard box always outweighs plain buttons: header buttons at the top don't pull it onto the tab bar
+    const header = { left: vw - 120, top: 8, width: 110, height: 36 };
+    assert.equal(cands[C.offerPick(cands, [tabs, deal], [header], { w: vw, h: vh })].name, 'top', `${vw}x${vh} header buttons`);
+    // plain buttons alone decide between spots
+    assert.equal(cands[C.offerPick(cands, [], [deal], { w: vw, h: vh })].name, cands[C.offerPick(cands, [], [deal], { w: vw, h: vh })].name);
+    assert.notEqual(cands[C.offerPick(cands, [], [{ left: 0, top: vh - 14 - h, width: vw, height: h }], { w: vw, h: vh })].name, 'bottom');
+  }
+  // a spot off the screen is never picked while another fits
+  const v = { w: 393, h: 659 };
+  assert.equal(C.offerPick([{ rect: { left: 16, top: -40, width: 360, height: 128 } }, { rect: { left: 16, top: 500, width: 360, height: 128 } }], [{ left: 0, top: 500, width: 393, height: 20 }], [], v), 1);
+  assert.equal(C.overlapArea({ left: 0, top: 0, width: 10, height: 10 }, { left: 5, top: 5, width: 10, height: 10 }), 25);
+  assert.equal(C.overlapArea({ left: 0, top: 0, width: 10, height: 10 }, { left: 10, top: 0, width: 5, height: 5 }), 0);
+});
+
+test('rules videos: YouTube links that open in a new tab; bad ids are left out; text is escaped', () => {
+  assert.equal(typeof C.videosHtml, 'function', 'COACH.videosHtml missing');
+  const h = C.videosHtml([{ id: 'DjfsX847nb0', title: 'How <to> play', channel: 'IELLO' }, { id: 'bad"id', title: 'x' }, { id: 'javascript:a', title: 'y' }]);
+  assert.equal((h.match(/<a /g) || []).length, 1);
+  assert.match(h, /href="https:\/\/www\.youtube\.com\/watch\?v=DjfsX847nb0" target="_blank" rel="noopener"/);
+  assert.match(h, /How &lt;to&gt; play/);
+  assert.match(h, /coach-vid-ch">IELLO</);
+  assert.equal(C.videosHtml([]), '');
+  assert.equal(C.videosHtml(undefined), '');
+});
+
+test('version is 1.2.0', () => { assert.equal(C.VERSION, '1.2.0'); });

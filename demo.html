@@ -9,7 +9,12 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; background: #14110d; color: #eee6d6; font: 14px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
   :root { --accent: #e0a43a; }
-  .app { height: 100dvh; display: grid; grid-template-rows: auto auto 1fr auto auto; gap: 8px; padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); }
+  .app { height: 100dvh; display: grid; grid-template-rows: auto auto 1fr auto auto; gap: 8px; padding: 8px 12px calc(62px + env(safe-area-inset-bottom)); }
+  /* a site-wide light link colour (like the games' dark themes): the rules sheet must still show dark links */
+  a { color: #c9a8ff; }
+  /* a fixed bottom tab bar, like most of the games: the first-visit card must not cover it */
+  .tabs { position: fixed; left: 0; right: 0; bottom: 0; height: calc(54px + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom); display: flex; background: #1d1810; border-top: 1px solid #4a3e2c; }
+  .tabs button { flex: 1; border: 0; border-radius: 0; background: transparent; min-height: 54px; }
   header { display: flex; gap: 6px; align-items: center; }
   header b { flex: 1; }
   button { font: inherit; font-size: 13px; font-weight: 600; min-height: 36px; padding: 0 10px; border-radius: 8px; border: 1px solid #4a3e2c; background: #241d14; color: #eee6d6; }
@@ -33,6 +38,7 @@
   <div class="hand" id="hand"><div class="card">A</div><div class="card">7</div><div class="card">K</div><div class="card">3</div></div>
   <div class="acts"><button id="go">Play</button><button id="pass">Pass</button></div>
 </div>
+<nav class="tabs" role="tablist"><button role="tab">Play</button><button role="tab">Stats</button><button role="tab">Settings</button></nav>
 <script src="coach.js"></script>
 <script>
   const T = COACH.tour({
@@ -50,7 +56,8 @@
   });
   document.getElementById('go').onclick = () => COACH.emit('played');
   document.getElementById('b-tour').onclick = () => { T.reset(); T.start(); };
-  const offer = force => COACH.offer({ id: 'demo', force, title: 'New here?', text: 'Play a guided first game.', onYes: () => T.start() });
+  // place: 'auto' keeps the card off the tab bar (found by itself) and off the Play button (avoid)
+  const offer = force => COACH.offer({ id: 'demo', force, place: 'auto', avoid: ['#go'], title: 'New here?', text: 'Play a guided first game.', onYes: () => T.start() });
   document.getElementById('b-offer').onclick = () => offer(true);
   const sections = [
     { id: 'goal', title: 'Goal', short: 'Goal', html: '<p>Be the first to 20 points, or the last one standing.</p>' },
@@ -60,9 +67,14 @@
     { id: 'energy', title: 'Energy and buying', short: 'Energy', html: '<p>Spend it on cards.</p>' },
     { id: 'healing', title: 'Healing', short: 'Healing', html: '<p>Not while in Tokyo.</p>' },
     { id: 'scoring', title: 'Scoring', short: 'Scoring', html: '<p>Points for each set.</p>' },
-    { id: 'end', title: 'End of the game', short: 'End', html: '<p>Ties share the win.</p>' },
+    { id: 'end', title: 'End of the game', short: 'End', html: '<p>Ties share the win. The full kit notes are in the <a href="https://github.com/TimothyHadfield/game-coach#readme" target="_blank" rel="noopener">README</a>.</p>' },
   ];
-  document.getElementById('b-rules').onclick = () => COACH.rules({ title: 'Rules', sections, intro: 'Demo rules sheet.' });
+  // videos: checked with youtube.com/oembed (200 + matching title) on 2026-10-28
+  const videos = [
+    { id: 'DjfsX847nb0', title: 'King of Tokyo: how to play', channel: 'IELLO Games, the publisher' },
+    { id: 'RWYGlPf6IzE', title: 'King of Tokyo in 3 minutes', channel: 'The Rules Girl' },
+  ];
+  document.getElementById('b-rules').onclick = () => COACH.rules({ title: 'Rules', sections, videos, intro: 'Demo rules sheet.' });
   if (!T.resume()) offer(false);
   window.__T = T;
 </script>

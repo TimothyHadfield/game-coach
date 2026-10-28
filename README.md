@@ -38,7 +38,10 @@ COACH.emit('event')   // tell the running tour something happened (safe to call 
 COACH.update()        // re-check conditions now (after the game redraws)
 
 // ---- offered once
-COACH.offer({ id, title, text, yes: 'Show me', no: 'No thanks', onYes, onNo, force, parent })   // false if already offered
+COACH.offer({ id, title, text, yes: 'Show me', no: 'No thanks', onYes, onNo, force, parent,
+  place,          // 1.2.0, optional: 'auto' | 'top' | 'bottom'. Left out = as before (bottom centre, your css)
+  avoid })        // 1.2.0, with place 'auto': selector / element / list the card must not cover (your start button)
+// false if already offered
 COACH.offered(id) · COACH.resetOffer(id) · COACH.closeOffer()
 
 // ---- stacked first game
@@ -50,12 +53,40 @@ COACH.findSeed(r => testDeal(r), { from: 1, max: 5000 })   // first seed whose d
 
 // ---- rules sheet
 COACH.rules({ title: 'Rules', intro, foot, open: 'turn', onClose,
-  sections: [{ id: 'turn', title: 'Your turn', short: 'Turn', html: '<p>…</p>' }] })
+  sections: [{ id: 'turn', title: 'Your turn', short: 'Turn', html: '<p>…</p>' }],
+  videos: [{ id: 'DjfsX847nb0', title: 'How to play', channel: 'IELLO, the publisher' }],   // 1.2.0, optional
+  videosTitle: 'Videos' })                // the last section + tab (open: 'videos' jumps to it)
 COACH.closeRules() → bool · COACH.rulesOpen()
-// inside section html: <p>, <ul>/<ol>, <table>, <h4>, <p class="tip"> (a boxed tip)
+COACH.videosHtml(videos)                  // the same list as html, to put inside a section of your own
+// inside section html: <p>, <ul>/<ol>, <table>, <h4>, <p class="tip"> (a boxed tip), <a> (dark ink-blue)
 
-// ---- pure helpers (tested): COACH.place(target, {w,h}, {w,h}, {prefer}) · unionRect · hash · motionOn · VERSION
+// ---- pure helpers (tested): COACH.place(target, {w,h}, {w,h}, {prefer}) · unionRect · overlapArea · offerPick · hash · motionOn · VERSION
 ```
+
+### First-visit card that covers nothing (1.2.0)
+Copy-paste (the only change from 1.1.0 is the last two options):
+```js
+COACH.offer({ id: 'coup-first', title: 'New to Coup?', text: 'Play one guided game.', onYes: startTutorial,
+  place: 'auto', avoid: ['#deal'] });
+```
+- `place: 'auto'` measures a few spots for the card: the usual bottom spot, just above a bottom tab bar, the
+  top, and just below a fixed top bar. It keeps the one that covers the least: tab bars, `avoid` and any
+  element marked `data-coach-avoid` count 100x more than other buttons and links. Ties keep the bottom spot.
+  It looks again before the first paint and when the screen turns or resizes. Only top/bottom are set
+  (inline), so a game's own horizontal css (Coup's top-right corner on a laptop) still applies.
+- Tab bars are found by themselves: fixed/sticky, `<nav>`, `<footer>` or `role="tablist"` boxes along the
+  bottom or top edge, 40%+ wide. You only need `avoid` for the main start button (or mark it
+  `data-coach-avoid` in the html instead).
+- `place: 'top'` / `'bottom'`: always that edge. Gaps: `--coach-offer-top` (10px) / `--coach-offer-bottom` (14px),
+  plus the safe area.
+- Games that already set `--coach-offer-bottom` or moved the card in their own css can drop that once they use
+  `place: 'auto'` (it overrides their top/bottom; harmless to leave).
+
+### Links on the rules paper (1.2.0)
+Links in the rules sheet are dark ink-blue `#2a4f9e` (`--coach-link`), visited too, with a 2px outline on
+keyboard focus. The kit rule is low-specificity (`.coach-rules-body :where(a)`), so it beats a site-wide
+`a { color: var(--accent) }` but a game's own `.coach-rules-body a {…}` or `.vids a {…}` still wins wherever it
+loads. Games that added `.coach-rules-body a { color: #2a4f9e }` themselves can drop it.
 
 ## 3. Integration steps (a game)
 1. **Rules**: write the rules in your own words as sections (Goal, Setup, Turn, …, End). Open them from a
@@ -91,6 +122,13 @@ COACH.closeRules() → bool · COACH.rulesOpen()
   and Chromium (1280, 1440), one browser at a time.
 
 ## Changelog
+- **1.2.0** (2026-10-28): rules-sheet links are dark ink-blue on the cream paper (were the site's light link
+  colour: 1.8:1 contrast in the demo, now 7.2:1), visited too, with a focus outline; a game's own link rule
+  still wins. `COACH.offer({ place: 'auto' | 'top' | 'bottom', avoid })` keeps the first-visit card off tab bars
+  and the start button (Coup: lifting it above the tab bar made it cover Deal). Default unchanged: without
+  `place` the card sits exactly where 1.1.0 put it, because ~25 games already tuned it with their own css.
+  Optional `videos` list in `COACH.rules` + `COACH.videosHtml`. Demo: a bottom tab bar, a light site link
+  colour, the offer with `place: 'auto'`, a Videos tab. Tests: 3 node + 4 browser checks per size, all failed on 1.1.0.
 - **1.1.0** (2026-10-27): rules tabs wrap instead of scrolling sideways (King of Tokyo, Splendor and others
   had a game-side fix); a tall target no longer squeezes the note into a one-line strip (Connect Four): the
   note keeps title + 2 lines + buttons, only its text scrolls. Normal notes are unchanged (same boxes).
