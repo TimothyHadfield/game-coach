@@ -73,8 +73,12 @@ COACH.closeRules() → bool · COACH.rulesOpen()
 
 ## 4. Behaviour
 - The bubble never leaves the screen and never covers its target at 320–1440 px (tested on 4,500 target
-  positions and in WebKit/Chromium at 320, 393, 659×393, 1280, 1440). Only a target that fills the whole
-  screen makes it sit over an edge.
+  positions and in WebKit/Chromium at 320, 393, 659×393, 1280, 1440).
+- The bubble is always readable: its title, at least 2 lines of text and its buttons (only the text scrolls
+  when it's squeezed). A target that leaves less room than that (a board filling most of the phone) gets
+  the readable note at the roomier edge, over the target's edge only by the missing height.
+- Rules sheet tabs wrap onto more rows on a phone: every section shows, nothing scrolls sideways. (Games
+  that added `.coach-rules .coach-rules-nav { flex-wrap: wrap; ... }` themselves can drop it; it's harmless.)
 - Dimming lets taps through (the game keeps working) unless a step says `block: true`.
 - Reduced motion (device setting or `FX.settings.animations === false`): no glow, slide or shake.
 - Storage blocked (private mode): the tour still runs, it just won't resume after a reload.
@@ -85,3 +89,10 @@ COACH.closeRules() → bool · COACH.rulesOpen()
   sideways-phone placement and the `when`/`until` tests (both found by the King of Tokyo pilot).
 - `node test/coach-ui.mjs http://127.0.0.1:PORT/demo.html [--shots dir]`: the demo in WebKit (320, 393, 659×393)
   and Chromium (1280, 1440), one browser at a time.
+
+## Changelog
+- **1.1.0** (2026-10-27): rules tabs wrap instead of scrolling sideways (King of Tokyo, Splendor and others
+  had a game-side fix); a tall target no longer squeezes the note into a one-line strip (Connect Four): the
+  note keeps title + 2 lines + buttons, only its text scrolls. Normal notes are unchanged (same boxes).
+  Tests: tall-target placement (node) and step + 8-tab rules sheet in the demo (browsers); both failed on 1.0.0.
+- **1.0.0** (2026-10-26): first release (pilot King of Tokyo).

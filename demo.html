@@ -45,6 +45,7 @@
       { target: '#hand', text: 'Your cards are held at the bottom edge.' },
       { target: '#go', title: 'Your move', text: 'Tap Play.', waitFor: 'played' },
       { target: '#b-rules', text: 'The full rules are behind this button.' },
+      { target: ['#board', '#hand'], title: 'The whole table', text: 'A big target leaves little room around it: the note still shows its title, at least two lines and its buttons.' },
     ],
   });
   document.getElementById('go').onclick = () => COACH.emit('played');
@@ -55,6 +56,10 @@
     { id: 'goal', title: 'Goal', short: 'Goal', html: '<p>Be the first to 20 points, or the last one standing.</p>' },
     { id: 'turn', title: 'Your turn', short: 'Turn', html: '<ol><li>Roll.</li><li>Keep any dice, reroll the rest, twice.</li><li>Resolve.</li></ol><p class="tip">Tip: a tip sits in a box like this.</p>' + '<p>Filler text so the sheet scrolls. '.repeat(12) + '</p>' },
     { id: 'cards', title: 'Cards', short: 'Cards', html: '<table><tr><th>Kind</th><th>What</th></tr><tr><td>Keep</td><td>Stays in front of you.</td></tr><tr><td>Discard</td><td>Used once.</td></tr></table>' + '<p>More filler. '.repeat(14) + '</p>' },
+    { id: 'tokyo', title: 'Entering Tokyo', short: 'Tokyo', html: '<p>The middle of the table.</p>' },
+    { id: 'energy', title: 'Energy and buying', short: 'Energy', html: '<p>Spend it on cards.</p>' },
+    { id: 'healing', title: 'Healing', short: 'Healing', html: '<p>Not while in Tokyo.</p>' },
+    { id: 'scoring', title: 'Scoring', short: 'Scoring', html: '<p>Points for each set.</p>' },
     { id: 'end', title: 'End of the game', short: 'End', html: '<p>Ties share the win.</p>' },
   ];
   document.getElementById('b-rules').onclick = () => COACH.rules({ title: 'Rules', sections, intro: 'Demo rules sheet.' });

@@ -31,17 +31,23 @@ test('the bubble never leaves the screen and never covers its target (320..1440 
           assert.ok(p.x >= 0 && p.y >= 0, `off the top/left: ${vw}x${vh} ${JSON.stringify(target)} -> ${JSON.stringify(p)}`);
           assert.ok(p.x + p.w <= vw && p.y + h <= vh, `off the bottom/right: ${vw}x${vh} ${JSON.stringify(target)} -> ${JSON.stringify(p)}`);
           assert.ok(p.w >= Math.min(160, vw - 16), `too narrow to read: ${p.w}px at ${vw}`);
-          assert.ok(h >= Math.min(72, bh), `too short to read: ${h}px`);
-          if (p.side === 'over') over++;
-          else assert.ok(!overlap(box, target), `covers the target: ${vw}x${vh} ${JSON.stringify(target)} -> ${JSON.stringify(p)}`);
-          // a target up to 45% of the screen's height always leaves room above or below
-          if (height <= vh * 0.45) assert.notEqual(p.side, 'over', `gave up with room left: ${vw}x${vh} ${JSON.stringify(target)}`);
+          assert.ok(h >= Math.min(136, bh), `too short to read: ${h}px`);
+          if (p.side === 'over') {
+            // only when no side leaves a readable note, and only over the target's edge by what is missing
+            over++;
+            const roomV = Math.max(target.top - 18, vh - target.top - height - 18);
+            assert.ok(roomV < Math.min(136, bh), `gave up with readable room: ${vw}x${vh} ${JSON.stringify(target)} -> ${JSON.stringify(p)}`);
+            const cover = Math.max(0, Math.min(p.y + h, target.top + height) - Math.max(p.y, target.top));
+            assert.ok(cover <= Math.min(136, bh) - roomV + 1, `covers more than it must: ${cover}px ${vw}x${vh} ${JSON.stringify(target)}`);
+          } else assert.ok(!overlap(box, target), `covers the target: ${vw}x${vh} ${JSON.stringify(target)} -> ${JSON.stringify(p)}`);
+          // a target up to 40% of the screen's height always leaves readable room above or below
+          if (height <= vh * 0.4) assert.notEqual(p.side, 'over', `gave up with room left: ${vw}x${vh} ${JSON.stringify(target)}`);
         }
       }
     }
   }
   assert.ok(n > 4000);
-  assert.equal(over, 0);
+  assert.ok(over < n * 0.01, over + ' of ' + n + ' over the target edge');
 });
 
 test('phone sideways, a tall target on the right: a narrower note beside it shows whole instead of a clipped one above', () => {
@@ -50,6 +56,31 @@ test('phone sideways, a tall target on the right: a narrower note beside it show
   assert.equal(p.side, 'left');
   assert.ok(p.w >= 200 && p.x >= 8 && p.x + p.w <= 288 - 10, JSON.stringify(p));
   assert.ok(p.maxH >= Math.ceil(137 * 320 / p.w), 'room for the whole note: ' + JSON.stringify(p));
+});
+
+test('a tall target (a board filling most of a phone) still gets a readable note, not a thin strip', () => {
+  // Connect Four: the board fills the phone and leaves 72..135 px above or below it. 1.0.0 gave the note
+  // exactly that strip (one line of text, the rest scrolled away). Now: at least the title, 2 lines and the
+  // buttons (READ), overlapping the target's edge only by what is missing.
+  const READ = 136;                                           // the default 2-line note at 15 px (title + 2 lines + buttons)
+  for (const [vw, vh] of [[320, 568], [393, 659]]) {
+    for (const bh of [139, 161, 205]) {
+      for (const room of [72, 90, 110, 135]) {
+        const top = 46, height = vh - 8 - 10 - room - top;     // room left below the target
+        const target = { left: 10, top, width: vw - 20, height };
+        const p = C.place(target, { w: 320, h: bh }, { w: vw, h: vh });
+        const h = Math.min(bh, p.maxH);
+        const where = `${vw}x${vh} room ${room} note ${bh} -> ${JSON.stringify(p)}`;
+        assert.ok(h >= Math.min(bh, READ), 'too short to read: ' + h + 'px, ' + where);
+        assert.ok(p.y >= 0 && p.y + h <= vh && p.x >= 0 && p.x + p.w <= vw, 'off screen: ' + where);
+        const cover = Math.max(0, Math.min(p.y + h, top + height) - Math.max(p.y, top));
+        assert.ok(cover <= Math.max(0, Math.min(bh, READ) - room) + 1, 'covers more of the target than it must: ' + cover + 'px, ' + where);
+      }
+    }
+  }
+  // given the measured 2-line height, it is used instead of the default
+  const p = C.place({ left: 10, top: 46, width: 373, height: 470 }, { w: 377, h: 180 }, { w: 393, h: 659 }, { minH: 150 });
+  assert.ok(Math.min(180, p.maxH) >= 150, JSON.stringify(p));
 });
 
 test('a target that fills the screen pins the bubble to an edge, still on screen', () => {

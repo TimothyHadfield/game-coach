@@ -23,7 +23,13 @@ const geo = () => {
   const b = document.querySelector('.coach-bubble'), r = document.querySelector('.coach-ring');
   if (!b) return null;
   const bb = b.getBoundingClientRect(), rr = r && r.style.display !== 'none' ? r.getBoundingClientRect() : null;
-  return { b: { l: bb.left, t: bb.top, r: bb.right, bt: bb.bottom }, ring: rr && { l: rr.left, t: rr.top, r: rr.right, bt: rr.bottom }, vw: innerWidth, vh: innerHeight, side: b.dataset.side, idx: window.__T.index, text: b.textContent };
+  const tx = b.querySelector('.coach-text'), lh = parseFloat(getComputedStyle(tx).lineHeight) || 21;
+  const read = b.scrollHeight - tx.offsetHeight + Math.min(tx.offsetHeight, 2 * lh);   // title + 2 lines + buttons
+  const room = rr ? Math.max(rr.top - 18, innerHeight - rr.bottom - 18) : innerHeight;
+  return { b: { l: bb.left, t: bb.top, r: bb.right, bt: bb.bottom }, ring: rr && { l: rr.left, t: rr.top, r: rr.right, bt: rr.bottom }, vw: innerWidth, vh: innerHeight, side: b.dataset.side, idx: window.__T.index, text: b.textContent,
+    // ...and the buttons are whole inside the note, and the text shows at least 2 lines (or all of it)
+    read, room, readable: b.clientHeight >= Math.min(b.scrollHeight, read) - 1 && b.querySelector('.coach-row').getBoundingClientRect().bottom <= bb.bottom + 0.5
+      && tx.clientHeight >= Math.min(tx.scrollHeight, 2 * lh) - 1 };
 };
 for (const [name, eng, w, h, mobile] of SIZES) {
   const browser = await pw[eng].launch();
@@ -35,15 +41,23 @@ for (const [name, eng, w, h, mobile] of SIZES) {
     check(await page.locator('.coach-offer').count() === 1, `${name}: first visit shows the offer`);
     if (shots) await page.screenshot({ path: `${shots}/${name}-offer.png` });
     await page.click('.coach-offer [data-o="yes"]'); await page.waitForTimeout(250);
-    let bad = 0, steps = 0;
+    let bad = 0, steps = 0, sawTall = false;
     for (let k = 0; k < 12; k++) {
       await page.waitForTimeout(150);
       const g = await page.evaluate(geo);
       if (!g) break;
       steps++;
       const on = g.b.l >= -0.5 && g.b.t >= -0.5 && g.b.r <= g.vw + 0.5 && g.b.bt <= g.vh + 0.5;
-      const cover = g.ring && g.b.l < g.ring.r && g.b.r > g.ring.l && g.b.t < g.ring.bt && g.b.bt > g.ring.t;
-      if (!on || cover) { bad++; console.log('   step', g.idx, JSON.stringify(g)); }
+      const coverPx = g.ring && g.b.l < g.ring.r && g.b.r > g.ring.l ? Math.max(0, Math.min(g.b.bt, g.ring.bt) - Math.max(g.b.t, g.ring.t)) : 0;
+      // only a target that leaves no readable room may be overlapped, and only at its edge, by what is missing
+      const cover = coverPx > 0 && !(g.side === 'over' && coverPx <= Math.max(0, g.read - g.room) + 2);
+      // readable: the title, at least 2 lines of text (or all of it) and the buttons show without scrolling
+      if (!on || cover || !g.readable) { bad++; console.log('   step', g.idx, JSON.stringify(g)); }
+      if (g.idx === 7) {
+        sawTall = true;
+        check(g.readable, `${name}: a tall target still gets a readable note (${Math.round(g.b.bt - g.b.t)} px tall, needs ${Math.round(g.read)})`);
+        if (shots) await page.screenshot({ path: `${shots}/${name}-tall.png` });
+      }
       if (shots && (k === 2 || k === 4)) await page.screenshot({ path: `${shots}/${name}-step${k}.png` });
       if (g.idx === 5) {                       // waits for the Play tap: there is no Next button
         check(await page.locator('.coach-bubble [data-coach="next"]').count() === 0, `${name}: a waiting step has no Next`);
@@ -61,7 +75,8 @@ for (const [name, eng, w, h, mobile] of SIZES) {
       }
       await page.click('.coach-bubble [data-coach="next"]');
     }
-    check(steps >= 7 && bad === 0, `${name}: bubble on screen and off the target at every step (${steps} steps, ${bad} bad)`);
+    check(sawTall, `${name}: the tall-target step was shown`);
+    check(steps >= 8 && bad === 0,`${name}: bubble on screen and off the target at every step (${steps} steps, ${bad} bad)`);
     check(await page.evaluate(() => !window.__T.active && window.__T.seen()), `${name}: Done ends the tour`);
     // Skip
     await page.evaluate(() => { window.__T.reset(); window.__T.start(); });
@@ -69,11 +84,20 @@ for (const [name, eng, w, h, mobile] of SIZES) {
     check(await page.locator('.coach-layer').count() === 0, `${name}: Skip removes the overlay`);
     // rules sheet
     await page.click('#b-rules'); await page.waitForTimeout(300);
+    // measure after the slide-in (WebKit can still be mid-animation at 300 ms)
+    await page.waitForFunction(() => document.querySelector('.coach-rules').getAnimations().every(a => a.playState === 'finished'), null, { timeout: 3000 }).catch(() => {});
     const rs = await page.evaluate(() => {
       const body = document.querySelector('.coach-rules-body'), sheet = document.querySelector('.coach-rules').getBoundingClientRect();
       return { font: parseFloat(getComputedStyle(body).fontSize), sideways: body.scrollWidth > body.clientWidth + 1 || document.documentElement.scrollWidth > innerWidth, inView: sheet.top >= 0 && sheet.bottom <= innerHeight + 0.5 && sheet.left >= 0 && sheet.right <= innerWidth + 0.5, scrolls: body.scrollHeight > body.clientHeight };
     });
     check(rs.font >= 15 && !rs.sideways && rs.inView, `${name}: rules sheet readable (${rs.font}px, sideways ${rs.sideways}, in view ${rs.inView})`);
+    // every section tab shows without scrolling the tab row sideways (they wrap onto a second row)
+    const tabs = await page.evaluate(() => {
+      const n = document.querySelector('.coach-rules-nav'), nr = n.getBoundingClientRect();
+      const out = [...n.querySelectorAll('button')].filter(b => { const r = b.getBoundingClientRect(); return r.left < nr.left - 0.5 || r.right > nr.right + 0.5; }).length;
+      return { sideways: n.scrollWidth > n.clientWidth + 1, hidden: out, n: n.children.length, rows: new Set([...n.children].map(b => Math.round(b.getBoundingClientRect().top))).size };
+    });
+    check(!tabs.sideways && tabs.hidden === 0, `${name}: all ${tabs.n} rules tabs show, no sideways scroll (${tabs.rows} row(s), ${tabs.hidden} cut off)`);
     await page.click('.coach-rules-nav [data-sec="2"]'); await page.waitForTimeout(150);
     const jumped = await page.evaluate(() => { const b = document.querySelector('.coach-rules-body'), s = b.querySelector('[data-k="2"]'); return Math.abs(s.getBoundingClientRect().top - b.getBoundingClientRect().top) < 30 || b.scrollTop + b.clientHeight >= b.scrollHeight - 2; });
     check(jumped, `${name}: a section tab jumps to its section`);
